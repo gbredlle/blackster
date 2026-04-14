@@ -1,0 +1,879 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2868
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 import React, \{ useEffect, useMemo, useRef, useState \} from "react";\
+import \{ motion, AnimatePresence \} from "framer-motion";\
+import \{\
+  Search,\
+  Download,\
+  Play,\
+  Pause,\
+  Heart,\
+  Upload,\
+  Lock,\
+  User,\
+  CreditCard,\
+  FolderPlus,\
+  Plus,\
+  Music,\
+  LogOut,\
+  X,\
+  UserPlus,\
+  Flame,\
+  Home,\
+  Library,\
+  Disc3,\
+\} from "lucide-react";\
+import \{ Card, CardContent \} from "@/components/ui/card";\
+import \{ Button \} from "@/components/ui/button";\
+import \{ Input \} from "@/components/ui/input";\
+import \{ Badge \} from "@/components/ui/badge";\
+\
+type Track = \{\
+  id: number;\
+  title: string;\
+  version: string;\
+  bpm: number;\
+  key: string;\
+  genre: string;\
+  cover: string;\
+  liked?: boolean;\
+  previewUrl?: string;\
+  downloadUrl?: string;\
+  fileName?: string;\
+  uploadedBy?: string;\
+  uploaderId?: number | null;\
+  waveform?: number[];\
+  plays?: number;\
+  downloads?: number;\
+  createdAt?: number;\
+  source?: "local" | "dropbox";\
+\};\
+\
+type Crate = \{\
+  id: number;\
+  name: string;\
+  trackIds: number[];\
+\};\
+\
+type UserAccount = \{\
+  id: number;\
+  email: string;\
+  password: string;\
+  name: string;\
+  subscribed: boolean;\
+\};\
+\
+type SessionProfile = \{\
+  loggedIn: boolean;\
+  email: string;\
+  name: string;\
+  subscribed: boolean;\
+  userId: number | null;\
+\};\
+\
+type View = "dashboard" | "trending" | "library" | "crates";\
+\
+const STORAGE_KEYS = \{\
+  tracks: "blackster_tracks_v6",\
+  crates: "blackster_crates_v6",\
+  session: "blackster_session_v6",\
+  users: "blackster_users_v6",\
+\};\
+\
+const initialTracks: Track[] = [\
+  \{\
+    id: 1,\
+    title: "Frenna - Pretty Girls",\
+    version: "Intro Edit",\
+    bpm: 102,\
+    key: "Gm",\
+    genre: "NL",\
+    cover: "FR",\
+    uploadedBy: "Blackster",\
+    uploaderId: 0,\
+    plays: 44,\
+    downloads: 18,\
+    createdAt: Date.now() - 86400000 * 3,\
+    waveform: [18, 26, 24, 30, 16, 34, 22, 28, 18, 32, 20, 26, 30, 14, 22, 28, 20, 24, 16, 30],\
+    source: "local",\
+  \},\
+  \{\
+    id: 2,\
+    title: "Tyla - Water",\
+    version: "Clean",\
+    bpm: 100,\
+    key: "Am",\
+    genre: "Afro",\
+    cover: "TW",\
+    uploadedBy: "Blackster",\
+    uploaderId: 0,\
+    plays: 77,\
+    downloads: 29,\
+    createdAt: Date.now() - 86400000 * 2,\
+    waveform: [20, 28, 20, 34, 14, 38, 22, 30, 18, 36, 20, 24, 32, 16, 28, 34, 18, 26, 20, 38],\
+    source: "local",\
+  \},\
+];\
+\
+const genres = ["All", "Afro", "R&B", "NL", "Amapiano", "Custom"];\
+\
+function Modal(\{\
+  open,\
+  title,\
+  children,\
+  onClose,\
+\}: \{\
+  open: boolean;\
+  title: string;\
+  children: React.ReactNode;\
+  onClose: () => void;\
+\}) \{\
+  return (\
+    <AnimatePresence>\
+      \{open && (\
+        <motion.div\
+          initial=\{\{ opacity: 0 \}\}\
+          animate=\{\{ opacity: 1 \}\}\
+          exit=\{\{ opacity: 0 \}\}\
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"\
+        >\
+          <motion.div\
+            initial=\{\{ opacity: 0, scale: 0.96, y: 10 \}\}\
+            animate=\{\{ opacity: 1, scale: 1, y: 0 \}\}\
+            exit=\{\{ opacity: 0, scale: 0.96, y: 10 \}\}\
+            className="w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-950 shadow-2xl"\
+          >\
+            <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">\
+              <h3 className="text-lg font-bold text-white">\{title\}</h3>\
+              <button onClick=\{onClose\} className="rounded-xl border border-zinc-800 bg-black p-2 text-zinc-300">\
+                <X className="h-4 w-4" />\
+              </button>\
+            </div>\
+            <div className="p-5">\{children\}</div>\
+          </motion.div>\
+        </motion.div>\
+      )\}\
+    </AnimatePresence>\
+  );\
+\}\
+\
+function Waveform(\{ progress, bars \}: \{ progress: number; bars?: number[] \}) \{\
+  const fallback = [18, 30, 24, 38, 16, 44, 22, 32, 20, 40, 18, 28, 36, 14, 26, 34, 22, 30, 16, 42];\
+  const data = bars && bars.length > 0 ? bars : fallback;\
+  return (\
+    <div className="flex h-14 items-end gap-1 rounded-2xl border border-zinc-800 bg-black px-3 py-2">\
+      \{data.map((h, i) => \{\
+        const filled = i / data.length <= progress;\
+        return (\
+          <div\
+            key=\{i\}\
+            className=\{`w-full rounded-full $\{filled ? "bg-white" : "bg-zinc-700"\}`\}\
+            style=\{\{ height: `$\{Math.max(8, h)\}px` \}\}\
+          />\
+        );\
+      \})\}\
+    </div>\
+  );\
+\}\
+\
+function normalizeDropboxUrl(url: string) \{\
+  const trimmed = url.trim();\
+  if (!trimmed) return "";\
+  if (trimmed.includes("dl.dropboxusercontent.com")) return trimmed;\
+  try \{\
+    const parsed = new URL(trimmed);\
+    if (parsed.hostname.includes("dropbox.com")) \{\
+      parsed.searchParams.delete("dl");\
+      parsed.searchParams.set("raw", "1");\
+      return parsed.toString();\
+    \}\
+  \} catch \{\
+    return trimmed;\
+  \}\
+  return trimmed;\
+\}\
+\
+function estimateFakeBpm(file: File) \{\
+  const base = 90 + (file.size % 50);\
+  return Math.min(160, Math.max(85, base));\
+\}\
+\
+export default function BlacksterApp() \{\
+  const audioRef = useRef<HTMLAudioElement | null>(null);\
+  const fileInputRef = useRef<HTMLInputElement | null>(null);\
+  const previewInputRef = useRef<HTMLInputElement | null>(null);\
+\
+  const [tracks, setTracks] = useState<Track[]>(initialTracks);\
+  const [crates, setCrates] = useState<Crate[]>([\{ id: 1, name: "Main Crate", trackIds: [1] \}]);\
+  const [users, setUsers] = useState<UserAccount[]>([]);\
+  const [profile, setProfile] = useState<SessionProfile>(\{\
+    loggedIn: false,\
+    email: "",\
+    name: "Bryan",\
+    subscribed: false,\
+    userId: null,\
+  \});\
+\
+  const [view, setView] = useState<View>("dashboard");\
+  const [query, setQuery] = useState("");\
+  const [activeGenre, setActiveGenre] = useState("All");\
+  const [playingId, setPlayingId] = useState<number | null>(null);\
+  const [progress, setProgress] = useState(0);\
+  const [toast, setToast] = useState<string | null>(null);\
+\
+  const [artist, setArtist] = useState("");\
+  const [title, setTitle] = useState("");\
+  const [version, setVersion] = useState("");\
+  const [genre, setGenre] = useState("Custom");\
+  const [musicalKey, setMusicalKey] = useState("Am");\
+  const [mp3File, setMp3File] = useState<File | null>(null);\
+  const [previewFile, setPreviewFile] = useState<File | null>(null);\
+  const [dropboxPreviewUrl, setDropboxPreviewUrl] = useState("");\
+  const [dropboxDownloadUrl, setDropboxDownloadUrl] = useState("");\
+  const [detectedBpm, setDetectedBpm] = useState<number>(100);\
+\
+  const [authOpen, setAuthOpen] = useState(false);\
+  const [membershipOpen, setMembershipOpen] = useState(false);\
+  const [crateOpen, setCrateOpen] = useState(false);\
+  const [newCrateName, setNewCrateName] = useState("");\
+  const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);\
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");\
+\
+  const [email, setEmail] = useState("");\
+  const [password, setPassword] = useState("");\
+  const [displayName, setDisplayName] = useState("");\
+  const [cardName, setCardName] = useState("");\
+  const [cardNumber, setCardNumber] = useState("");\
+  const [expiry, setExpiry] = useState("");\
+  const [cvc, setCvc] = useState("");\
+\
+  useEffect(() => \{\
+    try \{\
+      const storedTracks = localStorage.getItem(STORAGE_KEYS.tracks);\
+      const storedCrates = localStorage.getItem(STORAGE_KEYS.crates);\
+      const storedSession = localStorage.getItem(STORAGE_KEYS.session);\
+      const storedUsers = localStorage.getItem(STORAGE_KEYS.users);\
+      if (storedTracks) setTracks(JSON.parse(storedTracks));\
+      if (storedCrates) setCrates(JSON.parse(storedCrates));\
+      if (storedSession) setProfile(JSON.parse(storedSession));\
+      if (storedUsers) setUsers(JSON.parse(storedUsers));\
+    \} catch (e) \{\
+      console.error(e);\
+    \}\
+  \}, []);\
+\
+  useEffect(() => \{\
+    localStorage.setItem(STORAGE_KEYS.tracks, JSON.stringify(tracks));\
+  \}, [tracks]);\
+\
+  useEffect(() => \{\
+    localStorage.setItem(STORAGE_KEYS.crates, JSON.stringify(crates));\
+  \}, [crates]);\
+\
+  useEffect(() => \{\
+    localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(profile));\
+  \}, [profile]);\
+\
+  useEffect(() => \{\
+    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));\
+  \}, [users]);\
+\
+  useEffect(() => \{\
+    const audio = audioRef.current;\
+    if (!audio) return;\
+    const onTimeUpdate = () => \{\
+      if (!audio.duration) return;\
+      setProgress(audio.currentTime / audio.duration);\
+    \};\
+    const onEnded = () => \{\
+      setPlayingId(null);\
+      setProgress(0);\
+    \};\
+    audio.addEventListener("timeupdate", onTimeUpdate);\
+    audio.addEventListener("ended", onEnded);\
+    return () => \{\
+      audio.removeEventListener("timeupdate", onTimeUpdate);\
+      audio.removeEventListener("ended", onEnded);\
+    \};\
+  \}, []);\
+\
+  const showToast = (message: string) => \{\
+    setToast(message);\
+    window.setTimeout(() => setToast(null), 2200);\
+  \};\
+\
+  const filteredTracks = useMemo(() => \{\
+    let result = [...tracks];\
+    if (view === "trending") \{\
+      result.sort((a, b) => ((b.downloads || 0) * 3 + (b.plays || 0)) - ((a.downloads || 0) * 3 + (a.plays || 0)));\
+    \} else \{\
+      result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));\
+    \}\
+    if (activeGenre !== "All") \{\
+      result = result.filter((track) => track.genre === activeGenre);\
+    \}\
+    if (view === "crates") \{\
+      const ids = new Set(crates.flatMap((crate) => crate.trackIds));\
+      result = result.filter((track) => ids.has(track.id));\
+    \}\
+    if (query.trim()) \{\
+      result = result.filter((track) =>\
+        `$\{track.title\} $\{track.version\} $\{track.genre\} $\{track.uploadedBy || ""\}`.toLowerCase().includes(query.toLowerCase())\
+      );\
+    \}\
+    return result;\
+  \}, [tracks, query, view, activeGenre, crates]);\
+\
+  const trendingTracks = useMemo(() => \{\
+    return [...tracks]\
+      .sort((a, b) => ((b.downloads || 0) * 3 + (b.plays || 0)) - ((a.downloads || 0) * 3 + (a.plays || 0)))\
+      .slice(0, 3);\
+  \}, [tracks]);\
+\
+  const handleRegister = () => \{\
+    if (!displayName || !email || !password) \{\
+      showToast("Vul naam, e-mail en wachtwoord in.");\
+      return;\
+    \}\
+    const exists = users.some((u) => u.email.toLowerCase() === email.toLowerCase());\
+    if (exists) \{\
+      showToast("Er bestaat al een account met dit e-mailadres.");\
+      return;\
+    \}\
+    const account: UserAccount = \{\
+      id: Date.now(),\
+      email,\
+      password,\
+      name: displayName,\
+      subscribed: false,\
+    \};\
+    setUsers((prev) => [account, ...prev]);\
+    setProfile(\{ loggedIn: true, email: account.email, name: account.name, subscribed: false, userId: account.id \});\
+    setAuthOpen(false);\
+    setPassword("");\
+    showToast("Account aangemaakt en ingelogd.");\
+  \};\
+\
+  const handleLogin = () => \{\
+    if (!email || !password) \{\
+      showToast("Vul je e-mail en wachtwoord in.");\
+      return;\
+    \}\
+    const account = users.find((u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);\
+    if (!account) \{\
+      showToast("Onjuiste login of account bestaat nog niet.");\
+      return;\
+    \}\
+    setProfile(\{ loggedIn: true, email: account.email, name: account.name, subscribed: account.subscribed, userId: account.id \});\
+    setAuthOpen(false);\
+    setPassword("");\
+    showToast("Je bent ingelogd op Blackster.");\
+  \};\
+\
+  const handleSubscribe = () => \{\
+    if (!profile.loggedIn || !profile.userId) \{\
+      setMembershipOpen(false);\
+      setAuthMode("login");\
+      setAuthOpen(true);\
+      return;\
+    \}\
+    if (!cardName || !cardNumber || !expiry || !cvc) \{\
+      showToast("Vul je betaalgegevens in.");\
+      return;\
+    \}\
+    setUsers((prev) => prev.map((u) => (u.id === profile.userId ? \{ ...u, subscribed: true \} : u)));\
+    setProfile((prev) => (\{ ...prev, subscribed: true \}));\
+    setMembershipOpen(false);\
+    showToast("Membership van \'805 per maand is geactiveerd.");\
+  \};\
+\
+  const uploadTrack = () => \{\
+    if (!profile.loggedIn) \{\
+      showToast("Login required to upload tracks");\
+      setAuthMode("login");\
+      setAuthOpen(true);\
+      return;\
+    \}\
+    if (!artist || !title || !version) \{\
+      showToast("Vul artiest, titel en versie in.");\
+      return;\
+    \}\
+\
+    const fullUrl = normalizeDropboxUrl(dropboxDownloadUrl) || (mp3File ? URL.createObjectURL(mp3File) : "");\
+    const previewUrl = normalizeDropboxUrl(dropboxPreviewUrl) || (previewFile ? URL.createObjectURL(previewFile) : fullUrl);\
+\
+    if (!fullUrl) \{\
+      showToast("Voeg een Dropbox downloadlink of mp3-bestand toe.");\
+      return;\
+    \}\
+\
+    const newTrack: Track = \{\
+      id: Date.now(),\
+      title: `$\{artist\} - $\{title\}`,\
+      version,\
+      bpm: detectedBpm,\
+      key: musicalKey,\
+      genre,\
+      cover: `$\{artist.charAt(0) || "D"\}$\{title.charAt(0) || "J"\}`.toUpperCase(),\
+      previewUrl,\
+      downloadUrl: fullUrl,\
+      fileName: mp3File?.name || "Dropbox MP3",\
+      uploadedBy: profile.name,\
+      uploaderId: profile.userId,\
+      waveform: [18, 30, 24, 38, 16, 44, 22, 32, 20, 40, 18, 28, 36, 14, 26, 34, 22, 30, 16, 42],\
+      plays: 0,\
+      downloads: 0,\
+      createdAt: Date.now(),\
+      source: dropboxDownloadUrl ? "dropbox" : "local",\
+    \};\
+\
+    setTracks((prev) => [newTrack, ...prev]);\
+    setArtist("");\
+    setTitle("");\
+    setVersion("");\
+    setGenre("Custom");\
+    setMusicalKey("Am");\
+    setMp3File(null);\
+    setPreviewFile(null);\
+    setDropboxPreviewUrl("");\
+    setDropboxDownloadUrl("");\
+    setDetectedBpm(100);\
+    if (fileInputRef.current) fileInputRef.current.value = "";\
+    if (previewInputRef.current) previewInputRef.current.value = "";\
+    showToast("Track ge\'fcpload naar Blackster.");\
+  \};\
+\
+  const togglePlay = (track: Track) => \{\
+    if (!track.previewUrl) \{\
+      showToast("Geen preview beschikbaar.");\
+      return;\
+    \}\
+    const audio = audioRef.current;\
+    if (!audio) return;\
+\
+    if (playingId === track.id) \{\
+      audio.pause();\
+      setPlayingId(null);\
+      return;\
+    \}\
+\
+    audio.src = track.previewUrl;\
+    audio.play().catch(() => \{\
+      showToast("Preview kon niet worden afgespeeld.");\
+    \});\
+    setPlayingId(track.id);\
+    setTracks((prev) => prev.map((t) => (t.id === track.id ? \{ ...t, plays: (t.plays || 0) + 1 \} : t)));\
+  \};\
+\
+  const toggleLike = (trackId: number) => \{\
+    setTracks((prev) => prev.map((t) => (t.id === trackId ? \{ ...t, liked: !t.liked \} : t)));\
+  \};\
+\
+  const handleDownload = (track: Track) => \{\
+    if (!profile.loggedIn) \{\
+      setAuthMode("login");\
+      setAuthOpen(true);\
+      return;\
+    \}\
+    if (!profile.subscribed) \{\
+      setMembershipOpen(true);\
+      return;\
+    \}\
+    if (!track.downloadUrl) \{\
+      showToast("Geen downloadbestand aanwezig.");\
+      return;\
+    \}\
+    const a = document.createElement("a");\
+    a.href = track.downloadUrl;\
+    a.download = track.fileName || `$\{track.title\}.mp3`;\
+    a.click();\
+    setTracks((prev) => prev.map((t) => (t.id === track.id ? \{ ...t, downloads: (t.downloads || 0) + 1 \} : t)));\
+    showToast(`Download gestart: $\{track.title\}`);\
+  \};\
+\
+  const openCrateModal = (trackId: number) => \{\
+    setSelectedTrackId(trackId);\
+    setCrateOpen(true);\
+  \};\
+\
+  const createCrate = () => \{\
+    if (!newCrateName.trim()) \{\
+      showToast("Geef je crate een naam.");\
+      return;\
+    \}\
+    const next: Crate = \{ id: Date.now(), name: newCrateName.trim(), trackIds: selectedTrackId ? [selectedTrackId] : [] \};\
+    setCrates((prev) => [next, ...prev]);\
+    setNewCrateName("");\
+    setCrateOpen(false);\
+    showToast("Nieuwe crate aangemaakt.");\
+  \};\
+\
+  const addTrackToCrate = (crateId: number) => \{\
+    if (!selectedTrackId) return;\
+    setCrates((prev) =>\
+      prev.map((crate) =>\
+        crate.id === crateId && !crate.trackIds.includes(selectedTrackId)\
+          ? \{ ...crate, trackIds: [...crate.trackIds, selectedTrackId] \}\
+          : crate\
+      )\
+    );\
+    setCrateOpen(false);\
+    showToast("Track toegevoegd aan crate.");\
+  \};\
+\
+  const renderTrackCard = (track: Track) => \{\
+    const isPlaying = playingId === track.id;\
+    return (\
+      <motion.div key=\{track.id\} initial=\{\{ opacity: 0, y: 8 \}\} animate=\{\{ opacity: 1, y: 0 \}\}>\
+        <div className="rounded-3xl border border-zinc-800 bg-black p-4">\
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">\
+            <div className="flex gap-4">\
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-700 bg-zinc-900 font-bold text-white">\
+                \{track.cover\}\
+              </div>\
+              <div className="min-w-0">\
+                <div className="truncate text-lg font-semibold text-white">\{track.title\}</div>\
+                <div className="text-sm text-zinc-400">\{track.version\}</div>\
+                <div className="mt-1 text-xs text-zinc-500">Uploaded by \{track.uploadedBy || "Blackster"\}</div>\
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">\
+                  <Badge variant="outline" className="rounded-full border-zinc-700 text-zinc-300">\{track.genre\}</Badge>\
+                  <Badge variant="outline" className="rounded-full border-zinc-700 text-zinc-300">\{track.bpm\} BPM</Badge>\
+                  <Badge variant="outline" className="rounded-full border-zinc-700 text-zinc-300">\{track.key\}</Badge>\
+                  <Badge variant="outline" className="rounded-full border-zinc-700 text-zinc-300">\{track.plays || 0\} plays</Badge>\
+                  <Badge variant="outline" className="rounded-full border-zinc-700 text-zinc-300">\{track.downloads || 0\} downloads</Badge>\
+                  <Badge variant="outline" className="rounded-full border-zinc-700 text-zinc-300">\{track.source || "local"\}</Badge>\
+                </div>\
+              </div>\
+            </div>\
+\
+            <div className="flex flex-wrap items-center gap-2">\
+              <Button variant="outline" className="rounded-2xl border-zinc-800 bg-zinc-950 text-white hover:bg-zinc-900" onClick=\{() => togglePlay(track)\}>\
+                \{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />\}\
+              </Button>\
+              <Button variant="outline" className="rounded-2xl border-zinc-800 bg-zinc-950 text-white hover:bg-zinc-900" onClick=\{() => toggleLike(track.id)\}>\
+                <Heart className=\{`h-4 w-4 $\{track.liked ? "fill-current" : ""\}`\} />\
+              </Button>\
+              <Button variant="outline" className="rounded-2xl border-zinc-800 bg-zinc-950 text-white hover:bg-zinc-900" onClick=\{() => openCrateModal(track.id)\}>\
+                <Music className="mr-2 h-4 w-4" />Crate\
+              </Button>\
+              <Button className="rounded-2xl bg-white text-black hover:bg-zinc-200" onClick=\{() => handleDownload(track)\}>\
+                \{profile.subscribed ? <Download className="mr-2 h-4 w-4" /> : <Lock className="mr-2 h-4 w-4" />\}\
+                \{profile.subscribed ? "Download" : "Members only"\}\
+              </Button>\
+            </div>\
+          </div>\
+\
+          <div className="mt-4 space-y-2">\
+            <div className="flex items-center justify-between text-xs text-zinc-500">\
+              <span>Preview waveform</span>\
+              <span>\{Math.round(progress * 100)\}%</span>\
+            </div>\
+            <Waveform progress=\{isPlaying ? progress : 0\} bars=\{track.waveform\} />\
+          </div>\
+        </div>\
+      </motion.div>\
+    );\
+  \};\
+\
+  return (\
+    <div className="min-h-screen bg-black text-white">\
+      <audio ref=\{audioRef\} preload="none" />\
+\
+      <div className="mx-auto max-w-7xl p-6 lg:p-8">\
+        <div className="mb-6 grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">\
+          <Card className="rounded-3xl border-zinc-800 bg-zinc-950">\
+            <CardContent className="p-5 space-y-5">\
+              <div>\
+                <div className="text-2xl font-black">Blackster</div>\
+                <div className="text-sm text-zinc-500">DJ pool prototype</div>\
+              </div>\
+\
+              <div className="rounded-3xl border border-zinc-800 bg-black p-4">\
+                <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">Membership</div>\
+                <div className="mt-2 text-3xl font-black">\'805<span className="text-base text-zinc-500">/month</span></div>\
+                <Button className="mt-4 w-full rounded-2xl bg-white text-black hover:bg-zinc-200" onClick=\{() => setMembershipOpen(true)\}>\
+                  \{profile.subscribed ? "Membership Active" : "Activate"\}\
+                </Button>\
+              </div>\
+\
+              <div className="space-y-2">\
+                \{[\
+                  ["dashboard", "Dashboard", Home],\
+                  ["trending", "Trending", Flame],\
+                  ["library", "Library", Library],\
+                  ["crates", "Crates", Disc3],\
+                ].map(([key, label, Icon]) => (\
+                  <button\
+                    key=\{key\}\
+                    onClick=\{() => setView(key as View)\}\
+                    className=\{`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition $\{view === key ? "bg-white text-black" : "bg-black text-zinc-300 hover:bg-zinc-900"\}`\}\
+                  >\
+                    <Icon className="h-4 w-4" />\
+                    \{label\}\
+                  </button>\
+                ))\}\
+              </div>\
+\
+              <div className="rounded-3xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300 space-y-2">\
+                <div>Login: <span className="text-white">\{profile.loggedIn ? profile.name : "Guest"\}</span></div>\
+                <div>Downloads: <span className="text-white">\{profile.subscribed ? "Unlocked" : "Locked"\}</span></div>\
+                <div>Crates: <span className="text-white">\{crates.length\}</span></div>\
+                <div>Liked: <span className="text-white">\{tracks.filter((t) => t.liked).length\}</span></div>\
+                <div>Accounts: <span className="text-white">\{users.length\}</span></div>\
+              </div>\
+            </CardContent>\
+          </Card>\
+\
+          <div className="space-y-4">\
+            <Card className="rounded-3xl border-zinc-800 bg-zinc-950">\
+              <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">\
+                <div>\
+                  <div className="text-sm text-zinc-500">\{profile.loggedIn ? `Welkom, $\{profile.name\}` : "Welcome"\}</div>\
+                  <div className="text-3xl font-black">Blackster DJ Pool</div>\
+                </div>\
+\
+                <div className="flex flex-wrap items-center gap-3">\
+                  <div className="relative min-w-[260px]">\
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />\
+                    <Input value=\{query\} onChange=\{(e) => setQuery(e.target.value)\} placeholder="Search tracks..." className="h-11 rounded-2xl border-zinc-800 bg-black pl-10 text-white" />\
+                  </div>\
+                  \{!profile.loggedIn ? (\
+                    <Button className="rounded-2xl bg-white text-black hover:bg-zinc-200" onClick=\{() => \{ setAuthMode("login"); setAuthOpen(true); \}\}>\
+                      <User className="mr-2 h-4 w-4" />Login\
+                    </Button>\
+                  ) : (\
+                    <Button variant="outline" className="rounded-2xl border-zinc-800 bg-black text-white hover:bg-zinc-900" onClick=\{() => setProfile(\{ loggedIn: false, email: "", name: "Bryan", subscribed: false, userId: null \})\}>\
+                      <LogOut className="mr-2 h-4 w-4" />Logout\
+                    </Button>\
+                  )\}\
+                </div>\
+              </CardContent>\
+            </Card>\
+\
+            <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">\
+              <Card className="rounded-3xl border-zinc-800 bg-zinc-950">\
+                <CardContent className="p-5 space-y-4">\
+                  <div className="flex items-center justify-between">\
+                    <div>\
+                      <h2 className="text-xl font-bold">Upload MP3</h2>\
+                      <p className="text-sm text-zinc-500">Upload lokaal of gebruik Dropbox preview- en downloadlinks</p>\
+                    </div>\
+                    <Upload className="h-5 w-5 text-zinc-500" />\
+                  </div>\
+\
+                  <div className="grid gap-3 md:grid-cols-2">\
+                    <Input placeholder="Artist" value=\{artist\} onChange=\{(e) => setArtist(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+                    <Input placeholder="Title" value=\{title\} onChange=\{(e) => setTitle(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+                    <Input placeholder="Version" value=\{version\} onChange=\{(e) => setVersion(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+                    <Input placeholder="Key" value=\{musicalKey\} onChange=\{(e) => setMusicalKey(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+                    <div className="rounded-2xl border border-zinc-800 bg-black px-3 py-2 md:col-span-2">\
+                      <select value=\{genre\} onChange=\{(e) => setGenre(e.target.value)\} className="h-7 w-full bg-transparent text-sm text-white outline-none">\
+                        \{genres.filter((g) => g !== "All").map((g) => (\
+                          <option key=\{g\} value=\{g\} className="bg-black text-white">\{g\}</option>\
+                        ))\}\
+                      </select>\
+                    </div>\
+                  </div>\
+\
+                  <div className="grid gap-3 md:grid-cols-2">\
+                    <div className="rounded-2xl border border-zinc-800 bg-black p-4">\
+                      <div className="mb-2 text-sm text-zinc-400">Main MP3 file</div>\
+                      <input\
+                        ref=\{fileInputRef\}\
+                        type="file"\
+                        accept="audio/*"\
+                        onChange=\{(e) => \{\
+                          const file = e.target.files?.[0] || null;\
+                          setMp3File(file);\
+                          if (file) setDetectedBpm(estimateFakeBpm(file));\
+                        \}\}\
+                        className="w-full text-sm text-zinc-300"\
+                      />\
+                    </div>\
+                    <div className="rounded-2xl border border-zinc-800 bg-black p-4">\
+                      <div className="mb-2 text-sm text-zinc-400">Preview file</div>\
+                      <input\
+                        ref=\{previewInputRef\}\
+                        type="file"\
+                        accept="audio/*"\
+                        onChange=\{(e) => setPreviewFile(e.target.files?.[0] || null)\}\
+                        className="w-full text-sm text-zinc-300"\
+                      />\
+                    </div>\
+                  </div>\
+\
+                  <div className="grid gap-3 md:grid-cols-2">\
+                    <Input placeholder="Dropbox preview URL (optional)" value=\{dropboxPreviewUrl\} onChange=\{(e) => setDropboxPreviewUrl(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+                    <Input placeholder="Dropbox download URL" value=\{dropboxDownloadUrl\} onChange=\{(e) => setDropboxDownloadUrl(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+                  </div>\
+\
+                  <div className="rounded-2xl border border-zinc-800 bg-black p-4">\
+                    <div className="text-sm text-zinc-400">Detected BPM</div>\
+                    <div className="mt-1 text-2xl font-black">\{detectedBpm\}</div>\
+                    <div className="mt-3">\
+                      <Waveform progress=\{0\} />\
+                    </div>\
+                  </div>\
+\
+                  <Button className="w-full rounded-2xl bg-white text-black hover:bg-zinc-200" onClick=\{uploadTrack\}>\
+                    Publish track\
+                  </Button>\
+                </CardContent>\
+              </Card>\
+\
+              <Card className="rounded-3xl border-zinc-800 bg-zinc-950">\
+                <CardContent className="p-5 space-y-4">\
+                  <div className="flex items-center justify-between">\
+                    <h2 className="text-xl font-bold">DJ Crates</h2>\
+                    <FolderPlus className="h-5 w-5 text-zinc-500" />\
+                  </div>\
+\
+                  <div className="space-y-3">\
+                    \{crates.map((crate) => (\
+                      <div key=\{crate.id\} className="rounded-2xl border border-zinc-800 bg-black p-4">\
+                        <div className="font-semibold text-white">\{crate.name\}</div>\
+                        <div className="mt-1 text-sm text-zinc-500">\{crate.trackIds.length\} tracks</div>\
+                      </div>\
+                    ))\}\
+                  </div>\
+\
+                  <Button variant="outline" className="w-full rounded-2xl border-zinc-800 bg-black text-white hover:bg-zinc-900" onClick=\{() => \{ setSelectedTrackId(null); setCrateOpen(true); setView("crates"); \}\}>\
+                    <Plus className="mr-2 h-4 w-4" />New crate\
+                  </Button>\
+                </CardContent>\
+              </Card>\
+            </div>\
+\
+            <div className="flex flex-wrap gap-2">\
+              \{genres.map((g) => (\
+                <button\
+                  key=\{g\}\
+                  onClick=\{() => setActiveGenre(g)\}\
+                  className=\{`rounded-full px-4 py-2 text-sm transition $\{activeGenre === g ? "bg-white text-black" : "bg-zinc-950 text-zinc-300 border border-zinc-800"\}`\}\
+                >\
+                  \{g\}\
+                </button>\
+              ))\}\
+            </div>\
+\
+            \{(view === "dashboard" || view === "trending") && (\
+              <Card className="rounded-3xl border-zinc-800 bg-zinc-950">\
+                <CardContent className="p-5">\
+                  <div className="flex items-center justify-between">\
+                    <div>\
+                      <h2 className="text-2xl font-bold text-white">\{view === "trending" ? "Trending Tracks" : "Dashboard Highlights"\}</h2>\
+                      <p className="text-sm text-zinc-500">Top tracks gebaseerd op plays en downloads</p>\
+                    </div>\
+                    <Flame className="h-5 w-5 text-zinc-500" />\
+                  </div>\
+                  <div className="mt-4 grid gap-3 lg:grid-cols-3">\
+                    \{trendingTracks.map((track) => (\
+                      <div key=\{track.id\} className="rounded-2xl border border-zinc-800 bg-black p-4">\
+                        <p className="font-semibold text-white">\{track.title\}</p>\
+                        <p className="text-sm text-zinc-400">\{track.version\}</p>\
+                        <div className="mt-3 flex gap-2 text-xs">\
+                          <Badge variant="outline" className="rounded-full border-zinc-700 text-zinc-300">\{track.plays || 0\} plays</Badge>\
+                          <Badge variant="outline" className="rounded-full border-zinc-700 text-zinc-300">\{track.downloads || 0\} downloads</Badge>\
+                        </div>\
+                      </div>\
+                    ))\}\
+                  </div>\
+                </CardContent>\
+              </Card>\
+            )\}\
+\
+            <Card className="rounded-3xl border-zinc-800 bg-zinc-950">\
+              <CardContent className="p-5 space-y-4">\
+                <div className="flex items-center justify-between">\
+                  <h2 className="text-xl font-bold text-white">Track library</h2>\
+                  <Badge className="rounded-full bg-zinc-800 text-zinc-200 hover:bg-zinc-800">\{filteredTracks.length\} tracks</Badge>\
+                </div>\
+                <div className="space-y-4">\{filteredTracks.map(renderTrackCard)\}</div>\
+              </CardContent>\
+            </Card>\
+          </div>\
+        </div>\
+      </div>\
+\
+      <Modal open=\{authOpen\} title=\{authMode === "login" ? "Login to Blackster" : "Create Blackster account"\} onClose=\{() => setAuthOpen(false)\}>\
+        <div className="space-y-4">\
+          <div className="flex rounded-2xl border border-zinc-800 bg-black p-1">\
+            <button onClick=\{() => setAuthMode("login")\} className=\{`flex-1 rounded-xl px-3 py-2 text-sm $\{authMode === "login" ? "bg-white text-black" : "text-zinc-400"\}`\}>Login</button>\
+            <button onClick=\{() => setAuthMode("register")\} className=\{`flex-1 rounded-xl px-3 py-2 text-sm $\{authMode === "register" ? "bg-white text-black" : "text-zinc-400"\}`\}>Register</button>\
+          </div>\
+          \{authMode === "register" && (\
+            <Input placeholder="Display name" value=\{displayName\} onChange=\{(e) => setDisplayName(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+          )\}\
+          <Input placeholder="Email address" value=\{email\} onChange=\{(e) => setEmail(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+          <Input type="password" placeholder="Password" value=\{password\} onChange=\{(e) => setPassword(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+          \{authMode === "login" ? (\
+            <Button className="w-full rounded-2xl bg-white text-black hover:bg-zinc-200" onClick=\{handleLogin\}><User className="mr-2 h-4 w-4" />Login</Button>\
+          ) : (\
+            <Button className="w-full rounded-2xl bg-white text-black hover:bg-zinc-200" onClick=\{handleRegister\}><UserPlus className="mr-2 h-4 w-4" />Create account</Button>\
+          )\}\
+        </div>\
+      </Modal>\
+\
+      <Modal open=\{membershipOpen\} title="Activate membership" onClose=\{() => setMembershipOpen(false)\}>\
+        <div className="space-y-4">\
+          <div className="rounded-2xl border border-zinc-800 bg-black p-4">\
+            <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">Blackster Standard</div>\
+            <div className="mt-2 text-4xl font-black text-white">\'805<span className="text-base text-zinc-500">/month</span></div>\
+            <div className="mt-3 text-sm text-zinc-400">Unlimited member downloads, weekly uploads en crates.</div>\
+          </div>\
+          <Input placeholder="Name on card" value=\{cardName\} onChange=\{(e) => setCardName(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+          <Input placeholder="Card number" value=\{cardNumber\} onChange=\{(e) => setCardNumber(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+          <div className="grid grid-cols-2 gap-3">\
+            <Input placeholder="MM/YY" value=\{expiry\} onChange=\{(e) => setExpiry(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+            <Input placeholder="CVC" value=\{cvc\} onChange=\{(e) => setCvc(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+          </div>\
+          <Button className="w-full rounded-2xl bg-white text-black hover:bg-zinc-200" onClick=\{handleSubscribe\}>\
+            <CreditCard className="mr-2 h-4 w-4" />Activate membership\
+          </Button>\
+        </div>\
+      </Modal>\
+\
+      <Modal open=\{crateOpen\} title="DJ Crates" onClose=\{() => setCrateOpen(false)\}>\
+        <div className="space-y-4">\
+          <div className="space-y-2">\
+            <div className="text-sm font-medium text-white">Create new crate</div>\
+            <Input placeholder="Crate name" value=\{newCrateName\} onChange=\{(e) => setNewCrateName(e.target.value)\} className="h-11 rounded-2xl border-zinc-800 bg-black text-white" />\
+            <Button className="w-full rounded-2xl bg-white text-black hover:bg-zinc-200" onClick=\{createCrate\}>Create crate</Button>\
+          </div>\
+\
+          <div className="space-y-2">\
+            <div className="text-sm font-medium text-white">Add track to existing crate</div>\
+            \{crates.map((crate) => (\
+              <button\
+                key=\{crate.id\}\
+                onClick=\{() => addTrackToCrate(crate.id)\}\
+                className="w-full rounded-2xl border border-zinc-800 bg-black px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-900"\
+              >\
+                \{crate.name\}\
+              </button>\
+            ))\}\
+          </div>\
+        </div>\
+      </Modal>\
+\
+      <AnimatePresence>\
+        \{toast && (\
+          <motion.div\
+            initial=\{\{ opacity: 0, y: 20 \}\}\
+            animate=\{\{ opacity: 1, y: 0 \}\}\
+            exit=\{\{ opacity: 0, y: 20 \}\}\
+            className="fixed bottom-6 right-6 z-50 rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-white shadow-2xl"\
+          >\
+            \{toast\}\
+          </motion.div>\
+        )\}\
+      </AnimatePresence>\
+    </div>\
+  );\
+\}\
+}
